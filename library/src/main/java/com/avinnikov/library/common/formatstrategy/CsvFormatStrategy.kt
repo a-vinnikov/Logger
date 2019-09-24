@@ -11,7 +11,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 
-const val SEPARATOR = ","
+const val SEPARATOR = ";"
 const val NEW_LINE = "\n"
 
 class CsvFormatStrategy(
