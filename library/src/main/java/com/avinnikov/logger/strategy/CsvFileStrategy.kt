@@ -5,11 +5,10 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
-import com.avinnikov.logger.Logger.LoggingLevel
+import com.avinnikov.logger.data.LoggingLevel
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
-import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -20,7 +19,7 @@ class CsvFileStrategy(
 ) : LogStrategy {
     private val date = Date()
 
-    override fun log(priority: LoggingLevel, message: String) {
+    override fun log(priority: LoggingLevel, message: String, throwable: Throwable?) {
         date.time = System.currentTimeMillis()
 
         val builder = StringBuilder()
@@ -29,25 +28,31 @@ class CsvFileStrategy(
         builder.append(priority)
         builder.append(fieldSeparator)
         builder.append(message)
+        builder.append(fieldSeparator)
+        builder.append(throwable?.toString() ?: "")
         builder.append(LINE_SEPARATOR)
 
         handler.sendMessage(handler.obtainMessage(priority.ordinal, builder.toString()))
     }
 
+    override fun getLogFile(): File {
+        return (handler as WriteHandler).getLoggerFile()
+    }
+
     companion object Builder {
         private const val MAX_BYTES = 5 * 1024 * 1024
-        const val DEFAULT_FIELD_SEPARATOR = ";"
+        private const val DEFAULT_FIELD_SEPARATOR = ";"
         const val LINE_SEPARATOR = "\n"
-        val DEFAULT_DATE_FORMAT = SimpleDateFormat("yyyy.MM.dd HH:mm:ss.SSS", Locale.US)
+        private val DEFAULT_DATE_FORMAT = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US)
 
         @JvmStatic
         fun build(
-            weakContext: WeakReference<Context>,
+            context: Context,
             fileName: String,
-            dateFormat: SimpleDateFormat?,
-            fieldSeparator: String?
+            dateFormat: SimpleDateFormat? = null,
+            fieldSeparator: String? = null
         ): CsvFileStrategy {
-            val diskPath = weakContext.get()?.filesDir
+            val diskPath = context.filesDir
             val folder = "${diskPath?.absolutePath ?: ""}${File.separatorChar}logger"
             val filePath = "${folder}${File.separatorChar}${fileName}.csv"
 
@@ -72,18 +77,17 @@ class CsvFileStrategy(
             val logFile = getLoggerFile()
             if (logFile.exists() && logFile.length() >= maxFileSize) {
                 val fileWriter = FileWriter(logFile, false)
-                // TODO: may be strong operation, refactor this
                 var lines = logFile.readLines()
                 lines = lines.subList(lines.size / 2, lines.size)
                 lines.forEach {
-                    fileWriter.write("$it\n")
+                    fileWriter.write("$it$LINE_SEPARATOR")
                 }
                 fileWriter.flush()
                 fileWriter.close()
             }
         }
 
-        private fun getLoggerFile(): File {
+        fun getLoggerFile(): File {
             val logFile = File(loggerFilePath)
             if (!logFile.exists()) {
                 logFile.parentFile.mkdirs()
